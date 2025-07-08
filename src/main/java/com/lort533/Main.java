@@ -768,7 +768,7 @@ public class Main {
 
             if (asset.getScaleY() != 1) {
                 fileContent += ",\n" +
-                    "            \"scaleX\": " + asset.getScaleY();
+                    "            \"scaleY\": " + asset.getScaleY();
             }
 
             if (asset.isXFlipped()) {
