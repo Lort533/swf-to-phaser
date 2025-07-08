@@ -1,0 +1,11 @@
+# You need to change the TexturePacker path depending on your OS,
+# you can also use a different texture packer.
+#
+# %SWF_NAME% - name of the SWF file
+# %SWF_PATH% - path to the folder with assets
+#
+# WARNING: Do NOT fill the placeholders (%SWF_NAME%, %SWF_PATH%, %SCENE_NAME%) as this is handled by the exporter.
+#
+exporterPath: '"C:\Program Files\CodeAndWeb\TexturePacker\bin\TexturePacker" --format phaser --sheet %SWF_NAME%-{n}.png --data %SWF_NAME%.json "%SWF_PATH%" --multipack'
+zoom: 1 # NOTE: Use 2 for Yukon
+preloadPackPath: 'yukon/assets/media/rooms/%SCENE_NAME%/%SCENE_NAME%-pack.json' # Default for Yukon
