@@ -852,7 +852,7 @@ public class Main {
 
             if (asset.getScaleY() != 1) {
                 fileContent += ",\n" +
-                    "            \"scaleX\": " + asset.getScaleY();
+                    "            \"scaleY\": " + asset.getScaleY();
             }
 
             if (asset.isXFlipped()) {
@@ -1001,7 +1001,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("SWF to Phaser 1.1\n");
+        System.out.println("SWF to Phaser 1.1.1\n");
 
         // Get settings (thanks: https://www.baeldung.com/java-snake-yaml)
         if (!getSettings()) {
