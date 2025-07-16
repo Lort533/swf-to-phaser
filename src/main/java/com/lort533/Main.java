@@ -5,9 +5,12 @@ import com.jpexs.decompiler.flash.EventListener;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.configuration.ConfigurationItem;
 import com.jpexs.decompiler.flash.exporters.FrameExporter;
+import com.jpexs.decompiler.flash.exporters.ShapeExporter;
 import com.jpexs.decompiler.flash.exporters.modes.ButtonExportMode;
+import com.jpexs.decompiler.flash.exporters.modes.ShapeExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.SpriteExportMode;
 import com.jpexs.decompiler.flash.exporters.settings.ButtonExportSettings;
+import com.jpexs.decompiler.flash.exporters.settings.ShapeExportSettings;
 import com.jpexs.decompiler.flash.exporters.settings.SpriteExportSettings;
 import com.jpexs.decompiler.flash.tags.*;
 import com.jpexs.decompiler.flash.tags.base.*;
@@ -54,8 +57,8 @@ public class Main {
         private boolean isButton = false;
         private final SmallestPoint smallestPoint;
         private int frames = 0;
-        private final float scaleX;
-        private final float scaleY;
+        private float scaleX;
+        private float scaleY;
         private final boolean flipX;
         private final boolean flipY;
 
@@ -111,8 +114,16 @@ public class Main {
             return scaleX;
         }
 
+        public void setScaleX(float scaleX) {
+            this.scaleX = scaleX;
+        }
+
         public float getScaleY() {
             return scaleY;
+        }
+
+        public void setScaleY(float scaleY) {
+            this.scaleY = scaleY;
         }
 
         public boolean isXFlipped() {
@@ -292,23 +303,89 @@ public class Main {
         return foundAssets;
     }
 
+    private static float getZoomSwap(Asset asset) {
+        float scaleX = asset.getScaleX();
+        float scaleY = asset.getScaleY();
+
+        float zoomSwap = 1;
+        if (scaleX > scaleY) {
+            zoomSwap = scaleX;
+            scaleY = scaleY / scaleX;
+        } else if (scaleY > scaleX) {
+            zoomSwap = scaleY;
+            scaleX = scaleX / scaleY;
+        } else {
+            zoomSwap = scaleX;
+
+            scaleX = 1;
+            scaleY = 1;
+        }
+
+        asset.setScaleX(scaleX);
+        asset.setScaleY(scaleY);
+
+        return zoomSwap;
+    }
+
+    private static void pullShapeData(String path, SWF swf, DefineShapeTag shapeTag, PlaceObjectTypeTag placeObjectTag) throws IOException, InterruptedException {
+        Configuration.fixAntialiasConflation = new ConfigurationItem<>("", false, true);
+
+        String name = shapeTag.getExportFileName();
+
+        Asset asset = new Asset(
+            name, getSmallestPoint(swf, placeObjectTag, placeObjectTag).multiply(settings.getZoom()),
+            placeObjectTag.getMatrix().scaleX,
+            placeObjectTag.getMatrix().scaleY
+        );
+
+        assets.add(asset);
+
+        new ShapeExporter().exportShapes(
+            new AbortRetryIgnoreHandler() {
+                @Override
+                public int handle(Throwable throwable) {
+                    return 0;
+                }
+
+                @Override
+                public AbortRetryIgnoreHandler getNewInstance() {
+                    return null;
+                }
+            },
+            path + name,
+            swf,
+            new ReadOnlyTagList(Arrays.asList(new DefineShapeTag[]{shapeTag})),
+            new ShapeExportSettings(ShapeExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
+            new EventListener() {
+                @Override
+                public void handleExportingEvent(String s, int i, int i1, Object o) {
+                }
+
+                @Override
+                public void handleExportedEvent(String s, int i, int i1, Object o) {
+                }
+
+                @Override
+                public void handleEvent(String s, Object o) {
+                }
+            },
+            1
+        );
+    }
+
     private static void pullData(String path, SWF swf, int id, PlaceObjectTypeTag placeObjectTag, PlaceObjectTypeTag parentPlaceObjectTag) throws IOException, InterruptedException, NoSuchFieldException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         CharacterTag tag = swf.getCharacter(id);
         if (tag instanceof ButtonTag) {
             return; // Is handled separately.
         }
 
-        //if (id != 301) {
-        //    return;
-        //}
-
-        assets.add(
-            new Asset(
-                tag.getExportFileName(), getSmallestPoint(swf, placeObjectTag, parentPlaceObjectTag).multiply(settings.getZoom()),
-                placeObjectTag.getMatrix().scaleX,
-                placeObjectTag.getMatrix().scaleY
-            )
+        Asset asset = new Asset(
+            tag.getExportFileName(), getSmallestPoint(swf, placeObjectTag, parentPlaceObjectTag).multiply(settings.getZoom()),
+            placeObjectTag.getMatrix().scaleX,
+            placeObjectTag.getMatrix().scaleY
         );
+
+        assets.add(asset);
 
         new FrameExporter().exportSpriteFrames(
             new AbortRetryIgnoreHandler() {
@@ -327,7 +404,7 @@ public class Main {
             id,
             null,
             1,
-            new SpriteExportSettings(SpriteExportMode.PNG, settings.getZoom()),
+            new SpriteExportSettings(SpriteExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
             new EventListener() {
                 @Override
                 public void handleExportingEvent(String s, int i, int i1, Object o) {}
@@ -391,8 +468,14 @@ public class Main {
                 PlaceObjectTypeTag placeObject = (PlaceObjectTypeTag) tag;
                 CharacterTag character = swf.getCharacter(placeObject.getCharacterId());
 
-                // TODO: Shapes too?
                 // Get placed objects in main frame
+
+                if (character instanceof DefineShapeTag) {
+                    DefineShapeTag shape = (DefineShapeTag) character;
+
+                    pullShapeData(folderPath, swf, shape, placeObject);
+                }
+
                 if (character instanceof DefineSpriteTag) {
                     DefineSpriteTag sprite = (DefineSpriteTag) character;
 
@@ -459,6 +542,7 @@ public class Main {
                     (scaleY * parentScaleY)
                 );
                 asset.setIsButton(true);
+
                 assets.add(asset);
 
                 ArrayList<Integer> frames = new ArrayList<>();
@@ -482,7 +566,7 @@ public class Main {
                     swf,
                     buttonTag.getCharacterId(),
                     frames,
-                    new ButtonExportSettings(ButtonExportMode.PNG, settings.getZoom()),
+                    new ButtonExportSettings(ButtonExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
                     new EventListener() {
                         @Override
                         public void handleExportingEvent(String s, int i, int i1, Object o) {}
@@ -768,7 +852,7 @@ public class Main {
 
             if (asset.getScaleY() != 1) {
                 fileContent += ",\n" +
-                    "            \"scaleY\": " + asset.getScaleY();
+                    "            \"scaleX\": " + asset.getScaleY();
             }
 
             if (asset.isXFlipped()) {
@@ -917,7 +1001,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("SWF to Phaser 1.0\n");
+        System.out.println("SWF to Phaser 1.1\n");
 
         // Get settings (thanks: https://www.baeldung.com/java-snake-yaml)
         if (!getSettings()) {
