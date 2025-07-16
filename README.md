@@ -21,6 +21,6 @@ The compiled JAR file isn't enough - check out the file structure on the release
 - Button animations (missing JPEXS feature?)
 
 ## Extra thanks
-Apart from people already mentioned in the code, also thanks to [Ubuntu Community](https://help.ubuntu.com/community/Beginners/BashScripting), StackOverflow, [AskUbuntu](https://askubuntu.com/a/108260) and Google in general. I know it sounds obvious, but why not thank anyways.
+Apart from people already mentioned in the code, also thanks to [Ubuntu Community](https://help.ubuntu.com/community/Beginners/BashScripting), StackOverflow, [AskUbuntu](https://askubuntu.com/a/108260), Edu14463 (for testing) and Google in general. I know it sounds obvious, but why not thank anyways.
 
 My (Lort533) contributions to this project are AI-free, I don't use AI for coding.
