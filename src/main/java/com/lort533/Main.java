@@ -57,12 +57,16 @@ public class Main {
         private boolean isButton = false;
         private final SmallestPoint smallestPoint;
         private int frames = 0;
+        private final double width;
+        private final double height;
         private float scaleX;
         private float scaleY;
         private final boolean flipX;
         private final boolean flipY;
+        private boolean moveTo = false;
+        private boolean activeFrame = true;
 
-        Asset(String name, SmallestPoint smallestPoint, float scaleX, float scaleY) {
+        Asset(String name, SmallestPoint smallestPoint, float scaleX, float scaleY, RECT rect) {
             this.name = name;
             this.smallestPoint = smallestPoint;
             this.flipX = (scaleX < 0);
@@ -70,6 +74,10 @@ public class Main {
 
             scaleX = Math.abs(scaleX);
             scaleY = Math.abs(scaleY);
+
+            this.width = (rect.getWidth() * scaleX) / SWF.unitDivisor;
+            this.height = (rect.getHeight() * scaleY) / SWF.unitDivisor;
+
             this.scaleX = (scaleX == 0) ? 1 : scaleX;
             this.scaleY = (scaleX == 0) ? 1 : scaleY;
         }
@@ -110,6 +118,14 @@ public class Main {
             this.frames = frames;
         }
 
+        public double getWidth() {
+            return width;
+        }
+
+        public double getHeight() {
+            return height;
+        }
+
         public float getScaleX() {
             return scaleX;
         }
@@ -132,6 +148,22 @@ public class Main {
 
         public boolean isYFlipped() {
             return flipY;
+        }
+
+        public boolean isMoveTo() {
+            return moveTo;
+        }
+
+        public void setMoveTo(boolean moveTo) {
+            this.moveTo = moveTo;
+        }
+
+        public boolean isActiveFrame() {
+            return activeFrame;
+        }
+
+        public void setActiveFrame(boolean activeFrame) {
+            this.activeFrame = activeFrame;
         }
     }
 
@@ -333,9 +365,11 @@ public class Main {
         String name = shapeTag.getExportFileName();
 
         Asset asset = new Asset(
-            name, getSmallestPoint(swf, placeObjectTag, placeObjectTag).multiply(settings.getZoom()),
+            name,
+            getSmallestPoint(swf, placeObjectTag, placeObjectTag).multiply(settings.getZoom()),
             placeObjectTag.getMatrix().scaleX,
-            placeObjectTag.getMatrix().scaleY
+            placeObjectTag.getMatrix().scaleY,
+            shapeTag.getRect()
         );
 
         assets.add(asset);
@@ -380,9 +414,11 @@ public class Main {
         }
 
         Asset asset = new Asset(
-            tag.getExportFileName(), getSmallestPoint(swf, placeObjectTag, parentPlaceObjectTag).multiply(settings.getZoom()),
+            tag.getExportFileName(),
+            getSmallestPoint(swf, placeObjectTag, parentPlaceObjectTag).multiply(settings.getZoom()),
             placeObjectTag.getMatrix().scaleX,
-            placeObjectTag.getMatrix().scaleY
+            placeObjectTag.getMatrix().scaleY,
+            ((DrawableTag) tag).getRect()
         );
 
         assets.add(asset);
@@ -489,8 +525,14 @@ public class Main {
                         handleBiggerPart(folderPath, swf, sprite.getTimeline(), sprite.getCharacterId(), (PlaceObjectTypeTag) tag);
                     }
 
-                    // TODO: This isn't the right place to extract buttons. Where is it?
+                    // TODO: This isn't the right place to extract buttons. Where is it? Or is it?
                     extractButtons(swf, folderPath, placeObject);
+                }
+
+                // Technically could merge above and below to below, remove button if check
+                // and add continue to shape if check - unsure if I should, though.
+                if (character instanceof ButtonTag) {
+                    extractButton(swf, folderPath, new PlaceObjectTag(swf), placeObject);
                 }
             }
 
@@ -511,6 +553,60 @@ public class Main {
         return null;
     }
 
+    private static void extractButton(SWF swf, String folderPath, PlaceObjectTypeTag placeObject, PlaceObjectTypeTag childPlaceObject) throws IOException, InterruptedException {
+        ButtonTag buttonTag = (ButtonTag) swf.getCharacter(childPlaceObject.getCharacterId());
+
+        float scaleX = getScale(childPlaceObject.getMatrix()).getX();
+        float scaleY = getScale(childPlaceObject.getMatrix()).getY();
+        float parentScaleX = getScale(placeObject.getMatrix()).getX();
+        float parentScaleY = getScale(placeObject.getMatrix()).getY();
+
+        Asset asset = new Asset(
+            buttonTag.getExportFileName(),
+            getSmallestPoint(swf, childPlaceObject, placeObject).multiply(settings.getZoom()),
+            (scaleX * parentScaleX),
+            (scaleY * parentScaleY),
+            buttonTag.getRect()
+        );
+        asset.setIsButton(true);
+
+        assets.add(asset);
+
+        ArrayList<Integer> frames = new ArrayList<>();
+        frames.add(0);
+        frames.add(1);
+        frames.add(2);
+
+        new FrameExporter().exportButtonFrames(
+            new AbortRetryIgnoreHandler() {
+                @Override
+                public int handle(Throwable throwable) {
+                    return 0;
+                }
+
+                @Override
+                public AbortRetryIgnoreHandler getNewInstance() {
+                    return null;
+                }
+            },
+            folderPath,
+            swf,
+            buttonTag.getCharacterId(),
+            frames,
+            new ButtonExportSettings(ButtonExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
+            new EventListener() {
+                @Override
+                public void handleExportingEvent(String s, int i, int i1, Object o) {}
+
+                @Override
+                public void handleExportedEvent(String s, int i, int i1, Object o) {}
+
+                @Override
+                public void handleEvent(String s, Object o) {}
+            }
+        );
+    }
+
     private static void extractButtons(SWF swf, String folderPath, PlaceObjectTypeTag placeObject) throws IOException, InterruptedException {
         DefineSpriteTag sprite = (DefineSpriteTag) swf.getCharacter(placeObject.getCharacterId());
         for (Tag tag : sprite.getTimeline().getFrame(0).innerTags) {
@@ -529,55 +625,7 @@ public class Main {
             PlaceObjectTypeTag childPlaceObject = (PlaceObjectTypeTag) tag;
             Tag underlyingTag = swf.getCharacter(childPlaceObject.getCharacterId());
             if (underlyingTag instanceof ButtonTag) {
-                ButtonTag buttonTag = (ButtonTag) underlyingTag;
-
-                float scaleX = getScale(childPlaceObject.getMatrix()).getX();
-                float scaleY = getScale(childPlaceObject.getMatrix()).getY();
-                float parentScaleX = getScale(placeObject.getMatrix()).getX();
-                float parentScaleY = getScale(placeObject.getMatrix()).getY();
-
-                Asset asset = new Asset(
-                    underlyingTag.getExportFileName(), getSmallestPoint(swf, childPlaceObject, placeObject).multiply(settings.getZoom()),
-                    (scaleX * parentScaleX),
-                    (scaleY * parentScaleY)
-                );
-                asset.setIsButton(true);
-
-                assets.add(asset);
-
-                ArrayList<Integer> frames = new ArrayList<>();
-                frames.add(0);
-                frames.add(1);
-                frames.add(2);
-
-                new FrameExporter().exportButtonFrames(
-                    new AbortRetryIgnoreHandler() {
-                        @Override
-                        public int handle(Throwable throwable) {
-                            return 0;
-                        }
-
-                        @Override
-                        public AbortRetryIgnoreHandler getNewInstance() {
-                            return null;
-                        }
-                    },
-                    folderPath,
-                    swf,
-                    buttonTag.getCharacterId(),
-                    frames,
-                    new ButtonExportSettings(ButtonExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
-                    new EventListener() {
-                        @Override
-                        public void handleExportingEvent(String s, int i, int i1, Object o) {}
-
-                        @Override
-                        public void handleExportedEvent(String s, int i, int i1, Object o) {}
-
-                        @Override
-                        public void handleEvent(String s, Object o) {}
-                    }
-                );
+                extractButton(swf, folderPath, placeObject, childPlaceObject);
             } else if (underlyingTag instanceof DefineSpriteTag) {
                 extractButtons(swf, folderPath, childPlaceObject);
             }
@@ -734,14 +782,19 @@ public class Main {
         } catch (Throwable ignored) {}
     }
 
-    private static void postAssetPack(String swfFileName, String folderPath) throws IOException {
-        Path assetPackerPath = Paths.get(folderPath + "asset_packer_files/" + swfFileName + ".json");
+    private static boolean postAssetPack(String swfFileName, String folderPath) {
+        try {
+            Path assetPackerPath = Paths.get(folderPath + "asset_packer_files/" + swfFileName + ".json");
+            String jsonFileContent = readFile(folderPath + "asset_packer_files/" + swfFileName + ".json")
+                .replaceAll("\"filename\": \"(.*)\\.png\"", "\"filename\": \"$1\"");
 
-        String jsonFileContent = readFile(folderPath + "asset_packer_files/" + swfFileName + ".json")
-            .replaceAll("\"filename\": \"(.*)\\.png\"", "\"filename\": \"$1\"");
+            assetPackerPath.toFile().delete();
+            new DataOutputStream(Files.newOutputStream(assetPackerPath)).writeBytes(jsonFileContent);
 
-        assetPackerPath.toFile().delete();
-        new DataOutputStream(Files.newOutputStream(assetPackerPath)).writeBytes(jsonFileContent);
+            return true;
+        } catch (Throwable ignored) {}
+
+        return false;
     }
 
     private static String preparePackFile(String sceneName) {
@@ -764,6 +817,36 @@ public class Main {
             "        \"version\": 2\n" +
             "    }\n" +
             "}\n";
+    }
+
+    private static void checkForButtons() throws IOException {
+        boolean found = false;
+        for (Asset asset : assets) {
+            if (asset.isButton()) {
+                if (!found) {
+                    System.out.print("This SWF file contains buttons. Do you want to apply extra behaviour to them? (Y/N): ");
+                    if (new BufferedReader(new InputStreamReader(System.in)).readLine().equalsIgnoreCase("y")) {
+                        System.out.println("Short explanation:");
+                        System.out.println("MoveTo - e.g. used in Yukon for doors, to allow the player to move after clicking");
+                        System.out.println("Turned off \"active frame\" - e.g. used in Yukon for doors, to prevent changing the button state after clicking");
+
+                        found = true;
+                    } else {
+                        return;
+                    }
+                }
+
+                System.out.print("Wanna add MoveTo to " + asset.getName() + "? (Y/N): ");
+                if (new BufferedReader(new InputStreamReader(System.in)).readLine().equalsIgnoreCase("y")) {
+                    asset.setMoveTo(true);
+                }
+
+                System.out.print("Wanna turn off \"active frame\" in " + asset.getName() + "? (Y/N): ");
+                if (new BufferedReader(new InputStreamReader(System.in)).readLine().equalsIgnoreCase("y")) {
+                    asset.setActiveFrame(false);
+                }
+            }
+        }
     }
 
     private final static HashMap<String, Integer> assetDuplicates = new HashMap<>();
@@ -829,9 +912,25 @@ public class Main {
                 if (asset.isButton()) {
                     fileContent +=
                         "\n" +
-                        "                \"Button\"\n" +
-                        "            ],\n" +
+                        "                \"Button\"";
+
+                    if (asset.isMoveTo()) {
+                        fileContent += ",\n                \"MoveTo\"";
+                    }
+
+                    fileContent +=
+                        "\n            ],\n" +
                         "            \"Button.spriteName\": \"" + assetName + "\",\n";
+
+                    if (!asset.isActiveFrame()) {
+                        fileContent += "            \"Button.activeFrame\": false,\n";
+                    }
+
+                    if (asset.isMoveTo()) {
+                        fileContent +=
+                            "            \"MoveTo.x\": " + (smallestPoint.getX() + (asset.getWidth() / 2)) + ",\n" +
+                            "            \"MoveTo.y\": " + (smallestPoint.getY() + (asset.getHeight() / 2)) + ",\n";
+                    }
                 } else {
                     fileContent += "],\n";
                 }
@@ -956,6 +1055,7 @@ public class Main {
         for (Asset asset : assets) {
             String assetName = asset.getName();
             String labelName = assetName;
+            SmallestPoint smallestPoint = asset.getSmallestPoint();
 
             assetDuplicates.putIfAbsent(assetName, 0);
             int duplicateCount = assetDuplicates.get(assetName) + 1;
@@ -970,6 +1070,17 @@ public class Main {
                     "        // " + labelName + " (components)\n" +
                     "        const " + labelName + "Button = new Button(" + labelName + ");\n" +
                     "        " + labelName + "Button.spriteName = \"" + assetName + "\";\n";
+
+                if (!asset.isActiveFrame()) {
+                    fileContent += "        " + labelName + "Button.activeFrame = false;\n";
+                }
+
+                if (asset.isMoveTo()) {
+                    fileContent +=
+                        "        const " + labelName + "MoveTo = new MoveTo(" + labelName + ");\n" +
+                        "        " + labelName + "MoveTo.x = \"" + (smallestPoint.getX() + (asset.getWidth() / 2)) + "\";\n" +
+                        "        " + labelName + "MoveTo.y = \"" + (smallestPoint.getY() + (asset.getHeight() / 2)) + "\";\n";
+                }
             } else if (asset.isAnimation()) {
                 fileContent +=
                     "\n" +
@@ -1001,7 +1112,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("SWF to Phaser 1.1.1\n");
+        System.out.println("SWF to Phaser 1.2\n");
 
         // Get settings (thanks: https://www.baeldung.com/java-snake-yaml)
         if (!getSettings()) {
@@ -1082,7 +1193,11 @@ public class Main {
 
         // Fixing the asset JSON
         System.out.print("Step 4: Modifying the texture pack...");
-        postAssetPack(swfFileName, folderPath);
+        if (!postAssetPack(swfFileName, folderPath)) {
+            System.out.println("\nError code 14: The texture packer has failed to pack the assets!");
+            System.out.println("Try manually texture packing the assets in the \"asset_imgs\" folder to find out the error cause.");
+            return;
+        }
         System.out.print(" done!\n");
 
         // Creating the (...)-pack.json file
@@ -1090,12 +1205,15 @@ public class Main {
 
         File packFile = new File(folderPath + "asset_packer_files/" + swfFileName + "-pack.json");
         if (!packFile.createNewFile()) {
-            System.out.println("\nError code 14: Could not create the (...)-pack.json file!");
+            System.out.println("\nError code 15: Could not create the (...)-pack.json file!");
             return;
         }
         new DataOutputStream(Files.newOutputStream(packFile.toPath())).writeBytes(preparePackFile(swfFileName));
 
         System.out.print(" done!\n");
+
+        // Checking for buttons to edit them prior to creating .scene and JS files
+        checkForButtons();
 
         // Creating the .scene file
         System.out.print("Step 6: Creating the .scene file...");
@@ -1104,9 +1222,10 @@ public class Main {
 
         File sceneFile = new File(folderPath + className + ".scene");
         if (!sceneFile.createNewFile()) {
-            System.out.println("\nError code 15: Could not create the scene file!");
+            System.out.println("\nError code 16: Could not create the scene file!");
             return;
         }
+
         new DataOutputStream(Files.newOutputStream(sceneFile.toPath())).writeBytes(prepareSceneFile(swf, swfFileName));
 
         System.out.print(" done!\n");
@@ -1116,7 +1235,7 @@ public class Main {
 
         File jsFile = new File(folderPath + className + ".js");
         if (!jsFile.createNewFile()) {
-            System.out.println("\nError code 16: Could not create the JS file!");
+            System.out.println("\nError code 17: Could not create the JS file!");
             return;
         }
         new DataOutputStream(Files.newOutputStream(jsFile.toPath())).writeBytes(prepareJsFile(className, swfFileName));
