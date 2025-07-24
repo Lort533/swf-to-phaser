@@ -364,6 +364,7 @@ public class Main {
 
         String name = shapeTag.getExportFileName();
 
+        RECT assetRect = shapeTag.getRect();
         Asset asset = new Asset(
             name,
             getSmallestPoint(swf, placeObjectTag, placeObjectTag).multiply(settings.getZoom()),
@@ -371,6 +372,15 @@ public class Main {
             placeObjectTag.getMatrix().scaleY,
             shapeTag.getRect()
         );
+
+        float zoomSwap = getZoomSwap(asset);
+        if (
+            (((int) ((assetRect.getWidth() * settings.getZoom() * zoomSwap) / SWF.unitDivisor)) <= 0)
+                ||
+            (((int) ((assetRect.getHeight() * settings.getZoom() * zoomSwap) / SWF.unitDivisor)) <= 0)
+        ) {
+            return; // Asset is smaller than 1px - can't be exported.
+        }
 
         assets.add(asset);
 
@@ -389,7 +399,7 @@ public class Main {
             path + name,
             swf,
             new ReadOnlyTagList(Arrays.asList(new DefineShapeTag[]{shapeTag})),
-            new ShapeExportSettings(ShapeExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
+            new ShapeExportSettings(ShapeExportMode.PNG, settings.getZoom() * zoomSwap),
             new EventListener() {
                 @Override
                 public void handleExportingEvent(String s, int i, int i1, Object o) {
@@ -413,13 +423,23 @@ public class Main {
             return; // Is handled separately.
         }
 
+        RECT assetRect = ((DrawableTag) tag).getRect();
         Asset asset = new Asset(
             tag.getExportFileName(),
             getSmallestPoint(swf, placeObjectTag, parentPlaceObjectTag).multiply(settings.getZoom()),
             placeObjectTag.getMatrix().scaleX,
             placeObjectTag.getMatrix().scaleY,
-            ((DrawableTag) tag).getRect()
+            assetRect
         );
+
+        float zoomSwap = getZoomSwap(asset);
+        if (
+            (((int) ((assetRect.getWidth() * settings.getZoom() * zoomSwap) / SWF.unitDivisor)) <= 0)
+                ||
+            (((int) ((assetRect.getHeight() * settings.getZoom() * zoomSwap) / SWF.unitDivisor)) <= 0)
+        ) {
+            return; // Asset is smaller than 1px - can't be exported.
+        }
 
         assets.add(asset);
 
@@ -440,7 +460,7 @@ public class Main {
             id,
             null,
             1,
-            new SpriteExportSettings(SpriteExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
+            new SpriteExportSettings(SpriteExportMode.PNG, settings.getZoom() * zoomSwap),
             new EventListener() {
                 @Override
                 public void handleExportingEvent(String s, int i, int i1, Object o) {}
@@ -561,14 +581,24 @@ public class Main {
         float parentScaleX = getScale(placeObject.getMatrix()).getX();
         float parentScaleY = getScale(placeObject.getMatrix()).getY();
 
+        RECT assetRect = buttonTag.getRect();
         Asset asset = new Asset(
             buttonTag.getExportFileName(),
             getSmallestPoint(swf, childPlaceObject, placeObject).multiply(settings.getZoom()),
             (scaleX * parentScaleX),
             (scaleY * parentScaleY),
-            buttonTag.getRect()
+            assetRect
         );
         asset.setIsButton(true);
+
+        float zoomSwap = getZoomSwap(asset);
+        if (
+            (((int) ((assetRect.getWidth() * settings.getZoom() * zoomSwap) / SWF.unitDivisor)) <= 0)
+                ||
+            (((int) ((assetRect.getHeight() * settings.getZoom() * zoomSwap) / SWF.unitDivisor)) <= 0)
+        ) {
+            return; // Asset is smaller than 1px - can't be exported.
+        }
 
         assets.add(asset);
 
@@ -593,7 +623,7 @@ public class Main {
             swf,
             buttonTag.getCharacterId(),
             frames,
-            new ButtonExportSettings(ButtonExportMode.PNG, settings.getZoom() * getZoomSwap(asset)),
+            new ButtonExportSettings(ButtonExportMode.PNG, settings.getZoom() * zoomSwap),
             new EventListener() {
                 @Override
                 public void handleExportingEvent(String s, int i, int i1, Object o) {}
@@ -1112,7 +1142,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("SWF to Phaser 1.2\n");
+        System.out.println("SWF to Phaser 1.2.1\n");
 
         // Get settings (thanks: https://www.baeldung.com/java-snake-yaml)
         if (!getSettings()) {
