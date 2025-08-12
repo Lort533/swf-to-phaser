@@ -19,7 +19,6 @@ The compiled JAR file isn't enough - check out the file structure on the release
 ## TODOs:
 - Ability to get all assets (without packing bigger ones as one asset)
 - Button animations (missing JPEXS feature?)
-- Add all the dependencies to the pom.xml file (still as `system` scope)
 
 ## Extra thanks
 Apart from people already mentioned in the code, also thanks to [Ubuntu Community](https://help.ubuntu.com/community/Beginners/BashScripting), StackOverflow, [AskUbuntu](https://askubuntu.com/a/108260), Edu14463 (for testing), everyone at CPAB and Google in general. I know it sounds obvious, but why not thank anyways.

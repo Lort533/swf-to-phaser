@@ -15,41 +15,52 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+	<repositories>
+		<repository>
+		    <id>jitpack.io</id>
+		    <url>https://jitpack.io</url>
+		</repository>
+	</repositories>
+
     <!-- Thanks: https://stackoverflow.com/a/9689877 -->
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <configuration>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>3.7.1</version>
+				<configuration>
                     <archive>
                         <manifestFile>src/main/resources/META-INF/MANIFEST.MF</manifestFile>
                     </archive>
-                </configuration>
-            </plugin>
+					<descriptorRefs>
+						<descriptorRef>jar-with-dependencies</descriptorRef>
+					</descriptorRefs>
+				</configuration>
+				<executions>
+					<execution>
+						<id>assemble-all</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
         </plugins>
     </build>
 
     <dependencies>
-        <dependency>
-            <groupId>com.jpexs.decompiler</groupId>
-            <artifactId>flash</artifactId>
-            <scope>system</scope>
-            <version>24.0.1</version>
-            <systemPath>${project.basedir}/libs/ffdec_lib_24.0.1/ffdec_lib.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>org.monte.media</groupId>
-            <artifactId>jpeg</artifactId>
-            <scope>system</scope>
-            <version>1.2</version>
-            <systemPath>${project.basedir}/libs/ffdec_lib_24.0.1/cmykjpeg.jar</systemPath>
-        </dependency>
+		
+		<dependency>
+			<groupId>com.github.jindrapetrik</groupId>
+			<artifactId>jpexs-decompiler</artifactId>
+			<version>version24.0.1</version>
+		</dependency>
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>2.4</version>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>
